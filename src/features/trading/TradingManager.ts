@@ -511,5 +511,38 @@ export class TradingManager {
     // toISOString() automatically converts to UTC
     return localDate.toISOString();
   }
+
+  /**
+   * Follow instruments for pending orders (NEW_FUNCTION - matches Python SDK)
+   * Port of Python SDK's instruments_follow function
+   * This is called after a pending order is created to track it
+   */
+  instrumentsFollow(
+    amount: number,
+    asset: string,
+    direction: string,
+    duration: number,
+    openTime: string,
+    pendingId: string,
+    profileId: string,
+    currencyCode: string
+  ): void {
+    const payload = {
+      amount,
+      command: direction === 'call' ? 0 : 1,
+      currency: currencyCode,
+      min_payout: 0,
+      open_time: openTime,
+      open_type: 0,
+      symbol: asset,
+      ticket: pendingId,
+      timeframe: duration,
+      uid: profileId,
+    };
+
+    const message = `42["instruments/follow",${JSON.stringify(payload)}]`;
+    this.ws.send(message);
+    this.logger.debug('Instruments follow sent:', payload);
+  }
 }
 

@@ -39,8 +39,6 @@ async function main() {
 
   const client = new QuotexClient(config);
 
-  console.log('📁 Using session from: quotex-session.json');
-
   try {
     // ==================== CONNECT ====================
     console.log('\n📡 Connecting to Quotex with session...\n');
@@ -49,7 +47,6 @@ async function main() {
     if (!connection.success) {
       console.error('❌ Connection failed:', connection.message);
       console.log('\n💡 Your session might be expired. Create a new one:');
-      console.log('   bun run create-session\n');
       return;
     }
 
@@ -171,10 +168,10 @@ async function main() {
     // })
 
     // console.log('✅ Pending order result:', JSON.stringify(openingPendingOrder, null, 2))
-    const allAssets = client.getPayoutByAsset("USDCHF_otc");
+    // const allAssets = client.getPayoutByAsset("USDCHF_otc");
 
     // const assetDetails = await client.getPayoutInfo("BRLUSD_otc")
-    console.log(allAssets, 'allAssets')
+    // console.log(allAssets, 'allAssets')
 
     console.log('═'.repeat(60));
 

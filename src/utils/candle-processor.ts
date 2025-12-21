@@ -148,3 +148,33 @@ export function getLowerShadow(candle: Candle): number {
   return bottom - candle.low;
 }
 
+/**
+ * Aggregate candle data (NEW_FUNCTION - matches Python SDK)
+ * Port of Python SDK's aggregate_candle function
+ */
+export function aggregateCandle(
+  tick: Record<number, any>,
+  candles: Record<number, any>
+): Record<number, any> {
+  for (const [timestamp, data] of Object.entries(tick)) {
+    const ts = Number(timestamp);
+    
+    if (!candles[ts]) {
+      candles[ts] = {
+        symbol: data.symbol,
+        open: data.open,
+        close: data.close,
+        high: data.high,
+        low: data.low,
+        timestamp: ts,
+      };
+    } else {
+      candles[ts].close = data.close;
+      candles[ts].high = Math.max(candles[ts].high, data.high);
+      candles[ts].low = Math.min(candles[ts].low, data.low);
+    }
+  }
+  
+  return candles;
+}
+

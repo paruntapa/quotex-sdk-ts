@@ -5,6 +5,8 @@
 export { calculateRSI } from './RSI';
 export { calculateMACD } from './MACD';
 export { calculateBollingerBands } from './BollingerBands';
+export { calculateADX } from './ADX';
+export { calculateIchimoku } from './Ichimoku';
 
 // Simple Moving Average
 export function calculateSMA(values: number[], period: number): number[] {

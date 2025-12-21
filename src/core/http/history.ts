@@ -1,30 +1,86 @@
 /**
  * Trade history handler
+ * 
+ * @NEW_FUNCTION - Enhanced to match Python SDK's WebSocket-based history
  */
 
 import { HttpClient } from './HttpClient';
 import type { Logger, TradeHistory } from '../../types';
 
 export class HistoryClient {
+  private sessionData: { cookies?: string; token?: string; userAgent?: string } = {};
+
   constructor(
     private readonly http: HttpClient,
     private readonly logger: Logger
   ) {}
 
   /**
-   * Get trade history
-   * Note: History is typically retrieved via WebSocket in Quotex
-   * This is a placeholder that may need WebSocket implementation
+   * Set session data for authenticated requests
+   */
+  setSessionData(sessionData: { cookies?: string; token?: string; userAgent?: string }): void {
+    this.sessionData = sessionData;
+  }
+
+  /**
+   * Get trade history (NEW_FUNCTION - matches Python SDK)
+   * Port of Python SDK's get_trader_history function
+   * 
+   * @param accountType - "demo" or "live"
+   * @param pageNumber - Page number for pagination
+   */
+  async getTraderHistory(accountType: 'demo' | 'live' = 'demo', pageNumber: number = 1): Promise<any> {
+    try {
+      this.logger.debug(`Fetching ${accountType} history (page: ${pageNumber})`);
+
+      const url = `https://qxbroker.com/api/v1/cabinets/trades/history/type/${accountType}?page=${pageNumber}`;
+
+      const headers: Record<string, string> = {
+        'referer': 'https://qxbroker.com/en/trade',
+        'content-type': 'application/json',
+        'accept': 'application/json',
+      };
+
+      if (this.sessionData.cookies) {
+        headers['cookie'] = this.sessionData.cookies;
+      }
+
+      if (this.sessionData.userAgent) {
+        headers['user-agent'] = this.sessionData.userAgent;
+      }
+
+      // Make HTTP GET request
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`History request failed: ${response.status}`);
+        return { data: [] };
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      this.logger.error('Failed to fetch history:', error);
+      return { data: [] };
+    }
+  }
+
+  /**
+   * Get trade history (enhanced version)
    */
   async getHistory(limit: number = 50, offset: number = 0): Promise<TradeHistory[]> {
     try {
       this.logger.debug(`Fetching trade history (limit: ${limit}, offset: ${offset})`);
       
-      // Note: The Python SDK gets history through WebSocket messages
-      // You may need to implement this through the WebSocket channel
-      this.logger.warn('History retrieval may require WebSocket implementation');
+      // Fetch from API endpoint
+      const response = await this.getTraderHistory('demo', 1);
+      const trades = response.data || [];
 
-      return [];
+      // Map to TradeHistory format
+      return trades.slice(offset, offset + limit).map((item: any) => this.mapHistoryItem(item));
     } catch (error) {
       this.logger.error('Failed to fetch history:', error);
       return [];
