@@ -10,10 +10,18 @@
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun --format esm --minify",
     "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:connection": "bun test tests/connection.test.ts",
+    "test:assets": "bun test tests/assets.test.ts",
+    "test:indicators": "bun test tests/indicators.test.ts",
+    "test:market": "bun test tests/market-data.test.ts",
+    "test:history": "bun test tests/history.test.ts",
     "example:basic": "bun run examples/basic-usage.ts",
     "example:trading": "bun run examples/trading-bot.ts",
     "example:analysis": "bun run examples/technical-analysis.ts",
     "example:monitor": "bun run examples/market-monitoring.ts",
+    "example:new": "bun run examples/new-features.ts",
     "create-session": "bun run create-manual-session.ts"
   },
   "keywords": [
