@@ -53,11 +53,8 @@ async function main() {
     console.log('✅ Connected successfully!\n');
     console.log('═'.repeat(60));
 
-    // ==================== ACCOUNT DETAILS ====================
-    console.log('\n👤 ACCOUNT INFORMATION\n');
-    
     // Load session data
-    const sessionData = await Bun.file('./quotex-session.json').json();
+    await Bun.file('./quotex-session.json').json();
    
     if (client.isConnected()) {
       console.log('🎉 WebSocket is WORKING!');
