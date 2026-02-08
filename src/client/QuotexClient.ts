@@ -81,7 +81,6 @@ export class QuotexClient {
     this.config = getDefaultConfig(config);
     this.logger = createLogger(this.config.debug);
     
-    // Initialize core components (Socket.IO)
     this.ws = new SocketIOManager(
       {
         url: QUOTEX_WSS_URL,
@@ -96,12 +95,10 @@ export class QuotexClient {
     this.session = new SessionManager(this.logger);
     this.http = new HttpClient(undefined, this.logger);
     
-    // Check if browser should be visible
     const browserHeadless = process.env.BROWSER_HEADLESS !== 'false';
     this.auth = new AuthClient(this.http, this.logger, this.config.lang, true, browserHeadless);
     this.history = new HistoryClient(this.http, this.logger);
     
-    // Initialize feature managers
     this.trading = new TradingManager(this.ws as any, this.logger);
     this.marketData = new MarketDataManager(this.ws as any, this.logger);
     this.account = new AccountManager(this.ws as any, this.logger);
@@ -122,9 +119,7 @@ export class QuotexClient {
   setAccountMode(mode: AccountMode): void {
     this.account.setAccountMode(mode);
     
-    // Update Socket.IO authorization if connected
     if (this.ws.isConnected()) {
-      // Socket.IO will be re-authorized in the next request
       this.logger.info(`Account mode set to: ${mode}`);
     }
   }
@@ -136,27 +131,24 @@ export class QuotexClient {
     try {
       this.logger.info('Connecting to Quotex...');
 
-      // Load session if exists
       const session = await this.session.load();
       
       if (session && this.session.isValid()) {
         this.logger.info('Using existing session');
         
-        // Set cookies and session data
         if (session.cookies) {
           this.http.setHeaders({
             'Cookie': session.cookies,
           });
         }
         
-        // Pass session to history client
         this.history.setSessionData({
           cookies: session.cookies,
           token: session.token,
           userAgent: session.userAgent,
         });
       } else {
-        // Login with credentials
+        
         const loginResult = await this.auth.login({
           email: this.config.email,
           password: this.config.password,
@@ -178,14 +170,12 @@ export class QuotexClient {
             timestamp: Date.now(),
           });
           
-          // Set cookies for subsequent requests
           if (loginResult.cookies) {
             this.http.setHeaders({
               'Cookie': loginResult.cookies,
             });
           }
           
-          // Pass session to history client
           this.history.setSessionData({
             cookies: loginResult.cookies,
             token: loginResult.token,
@@ -194,7 +184,6 @@ export class QuotexClient {
         }
       }
 
-      // Connect to Socket.IO with token, cookies, and user agent
       this.logger.info('Connecting to WebSocket (Socket.IO protocol)...');
       const wsConnected = await this.ws.connect(
         session?.token,

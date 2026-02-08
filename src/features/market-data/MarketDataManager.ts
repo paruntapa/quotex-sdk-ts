@@ -80,7 +80,6 @@ export class MarketDataManager {
     this.ws.send(message);
 
     // Wait for history line data
-    // In Python SDK, this waits for api.historical_candles to be set
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Return empty for now - needs WebSocket handler implementation

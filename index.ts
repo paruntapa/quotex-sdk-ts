@@ -12,6 +12,7 @@
 
 import { QuotexClient } from './src';
 import { existsSync } from 'fs';
+import { AssetManager } from './src/features/assets/AssetManager';
 
 /**
  * Main function - tests SDK with manual session
@@ -19,7 +20,6 @@ import { existsSync } from 'fs';
 async function main() {
   console.log('🚀 Quotex SDK - Account & API Test\n');
 
-  // Check if session exists
   const sessionFile = './quotex-session.json';
   if (!existsSync(sessionFile)) {
     console.error('❌ Error: quotex-session.json not found!');
@@ -29,10 +29,9 @@ async function main() {
     process.exit(1);
   }
 
-  // Create client (will use session automatically)
   const config = {
-    email: process.env.QUOTEX_EMAIL ||'session-user', // Not needed with manual session
-    password: process.env.QUOTEX_PASSWORD || 'session-pass', // Not needed with manual session
+    email: process.env.QUOTEX_EMAIL ||'session-user',
+    password: process.env.QUOTEX_PASSWORD || 'session-pass',
     lang: (process.env.QUOTEX_LANG || 'en') as 'en' | 'pt' | 'es',
     debug: process.env.DEBUG === 'true',
   };
@@ -53,7 +52,6 @@ async function main() {
     console.log('✅ Connected successfully!\n');
     console.log('═'.repeat(60));
 
-    // Load session data
     await Bun.file('./quotex-session.json').json();
    
     if (client.isConnected()) {
@@ -62,21 +60,19 @@ async function main() {
     } else {
       console.log('ℹ️  Note: WebSocket disconnected.');
     }
+
     
-    // Wait a bit after connection for socket to stabilize
     await Bun.sleep(2000);
     
 
   } catch (error) {
     console.error('\n❌ Error occurred:', error);
   } finally {
-    // Disconnect
     await client.disconnect();
     console.log('👋 Disconnected from Quotex\n');
   }
 }
 
-// Run the example
 if (import.meta.main) {
   main().catch(console.error);
 }
