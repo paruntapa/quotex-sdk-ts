@@ -1,7 +1,3 @@
-/**
- * Default configuration values
- */
-
 import type { QuotexConfig } from '../types';
 import { DEFAULT_CONFIG, DEFAULT_USER_AGENT } from './constants';
 
@@ -12,6 +8,7 @@ export function getDefaultConfig(partial: Partial<QuotexConfig>): Required<Quote
     lang: partial.lang || DEFAULT_CONFIG.lang,
     userAgent: partial.userAgent || DEFAULT_USER_AGENT,
     debug: partial.debug ?? DEFAULT_CONFIG.debug,
+    sessionPath: partial.sessionPath || 'quotex-session.json',
   };
 }
 

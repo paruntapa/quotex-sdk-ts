@@ -1,15 +1,6 @@
-/**
- * QuotexSDK - TypeScript SDK for Quotex Trading Platform
- * 
- * @packageDocumentation
- */
-
-// Main client
 export { QuotexClient } from './client/QuotexClient';
 
-// Type exports
 export type {
-  // Common
   ConnectionResult,
   QuotexConfig,
   Direction,
@@ -17,16 +8,12 @@ export type {
   TimeMode,
   Unsubscribe,
   Logger,
-  
-  // Trading
   BuyOptions,
   TradeResult,
   TradeInfo,
   PendingOrderOptions,
   SellOptionResult,
   TradeHistory,
-  
-  // Market Data
   Candle,
   CandleOptions,
   RealtimePrice,
@@ -35,8 +22,6 @@ export type {
   CandleCallback,
   PriceCallback,
   SentimentCallback,
-  
-  // Indicators
   IndicatorType,
   IndicatorOptions,
   IndicatorResult,
@@ -49,23 +34,17 @@ export type {
   SMAResult,
   EMAResult,
   IchimokuResult,
-  
-  // Account
   Profile,
   BalanceInfo,
   AccountSettings,
-  
-  // Assets
   Asset,
   AssetInfo,
   PayoutInfo,
   InstrumentData,
 } from './types';
 
-// Constants
 export { TIMEFRAMES, VALID_PERIODS } from './config/constants';
 
-// Utilities
 export {
   getTimestamp,
   getTimestampMs,

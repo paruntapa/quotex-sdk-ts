@@ -1,22 +1,7 @@
-/**
- * Quotex SDK - Test Script
- * 
- * This script tests the SDK with your manual session and shows:
- * - Account details (balance, mode, profile)
- * - Available assets
- * - WebSocket connection
- * - Basic API functionality
- * 
- * Make sure you have a valid quotex-session.json file!
- */
-
 import { QuotexClient } from './src';
 import { existsSync } from 'fs';
 import { AssetManager } from './src/features/assets/AssetManager';
 
-/**
- * Main function - tests SDK with manual session
- */
 async function main() {
   console.log('🚀 Quotex SDK - Account & API Test\n');
 
@@ -39,10 +24,8 @@ async function main() {
   const client = new QuotexClient(config);
 
   try {
-    // ==================== CONNECT ====================
     console.log('\n📡 Connecting to Quotex with session...\n');
     const connection = await client.connect();
-
     if (!connection.success) {
       console.error('❌ Connection failed:', connection.message);
       console.log('\n💡 Your session might be expired. Create a new one:');

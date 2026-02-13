@@ -1,7 +1,3 @@
-/**
- * Common types used across the SDK
- */
-
 export interface ConnectionResult {
   success: boolean;
   message?: string;
@@ -13,6 +9,7 @@ export interface QuotexConfig {
   lang?: 'en' | 'pt' | 'es';
   userAgent?: string;
   debug?: boolean;
+  sessionPath?: string;
 }
 
 export type Direction = 'call' | 'put';

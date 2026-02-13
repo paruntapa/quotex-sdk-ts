@@ -1,7 +1,3 @@
-/**
- * Market data operations manager
- */
-
 import type {
   Logger,
   Candle,
@@ -31,15 +27,19 @@ export class MarketDataManager {
     this.setupMarketDataHandlers();
   }
 
-  /**
-   * Get historical candles
-   */
   async getCandles(options: CandleOptions): Promise<Candle[]> {
     const { asset, endTime = getTimestamp(), offset, period } = options;
 
     this.logger.debug(`Fetching candles for ${asset}, period: ${period}`);
 
-    // Request candles through WebSocket (matches Python SDK)
+    this.candleStreams.delete(asset);
+
+    const subPayload = { asset, period };
+    this.ws.send(`42["instruments/update",${JSON.stringify(subPayload)}]`);
+    this.ws.send(`42["depth/follow","${asset}"]`);
+
+    await Bun.sleep(200);
+
     const payload = {
       asset,
       index: getTimestamp(),
@@ -51,18 +51,9 @@ export class MarketDataManager {
     const message = `42["history/load",${JSON.stringify(payload)}]`;
     this.ws.send(message);
 
-    // Wait for candles data
-    return this.waitForCandles(asset, period, 5000);
+    return this.waitForCandles(asset, period, 10000);
   }
 
-  /**
-   * Get history line data (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's get_history_line function
-   * 
-   * @param assetId - Asset ID (not symbol)
-   * @param endTime - End time for history
-   * @param offset - Offset in seconds
-   */
   async getHistoryLine(assetId: string, endTime?: number, offset: number = 3600): Promise<any> {
     const endFromTime = endTime || getTimestamp();
     const index = getTimestamp();
@@ -79,39 +70,25 @@ export class MarketDataManager {
     const message = `42["history/load/line",${JSON.stringify(payload)}]`;
     this.ws.send(message);
 
-    // Wait for history line data
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Return empty for now - needs WebSocket handler implementation
     return {};
   }
 
-  /**
-   * Get realtime candles for an asset
-   */
   async getRealtimeCandles(asset: string): Promise<Candle[]> {
     const candles = this.candleStreams.get(asset);
     return candles ? [...candles] : [];
   }
 
-  /**
-   * Get realtime price for an asset
-   */
   async getRealtimePrice(asset: string): Promise<RealtimePrice[]> {
     const prices = this.priceStreams.get(asset);
     return prices ? [...prices] : [];
   }
 
-  /**
-   * Get realtime sentiment for an asset
-   */
   async getRealtimeSentiment(asset: string): Promise<MarketSentiment | null> {
     return this.sentimentData.get(asset) || null;
   }
 
-  /**
-   * Get trading signals
-   */
   getSignalData(): TradingSignal[] {
     const allSignals: TradingSignal[] = [];
     for (const signals of this.signalData.values()) {
@@ -120,9 +97,6 @@ export class MarketDataManager {
     return allSignals;
   }
 
-  /**
-   * Subscribe to candle stream
-   */
   subscribeToCandleStream(
     asset: string,
     period: number,
@@ -130,23 +104,19 @@ export class MarketDataManager {
   ): Unsubscribe {
     this.logger.debug(`Subscribing to candle stream: ${asset}, period: ${period}`);
 
-    // Subscribe through WebSocket
     const payload = { asset, period };
     const message = `42["instruments/update",${JSON.stringify(payload)}]`;
     this.ws.send(message);
 
-    // Follow candle (Python SDK passes asset as string directly, not in object)
     const followMessage = `42["depth/follow","${asset}"]`;
     this.ws.send(followMessage);
 
-    // Store callback
     const key = `candles:${asset}:${period}`;
     if (!this.subscriptions.has(key)) {
       this.subscriptions.set(key, new Set());
     }
     this.subscriptions.get(key)!.add(callback);
 
-    // Return unsubscribe function
     return () => {
       this.subscriptions.get(key)?.delete(callback);
       if (this.subscriptions.get(key)?.size === 0) {
@@ -155,9 +125,6 @@ export class MarketDataManager {
     };
   }
 
-  /**
-   * Subscribe to price stream
-   */
   subscribeToPriceStream(asset: string, period: number, callback: PriceCallback): Unsubscribe {
     this.subscribeToCandleStream(asset, period, (candle) => {
       const price: RealtimePrice = {
@@ -179,9 +146,6 @@ export class MarketDataManager {
     };
   }
 
-  /**
-   * Subscribe to sentiment stream
-   */
   subscribeToSentimentStream(
     asset: string,
     callback: SentimentCallback
@@ -204,19 +168,11 @@ export class MarketDataManager {
     };
   }
 
-  /**
-   * Start signal data stream
-   */
   startSignalsData(): void {
-    // Correct format from Python SDK
     const message = '42["signal/subscribe"]';
     this.ws.send(message);
   }
 
-  /**
-   * Get opening/closing info for current candle (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's opening_closing_current_candle function
-   */
   async openingClosingCurrentCandle(asset: string, period: number = 0): Promise<{
     symbol: string;
     open: number;
@@ -234,7 +190,6 @@ export class MarketDataManager {
       return null;
     }
 
-    // Aggregate candle data
     const candlesData: Record<number, any> = {};
     for (const candle of candleTick) {
       const timestamp = candle.time;
@@ -254,7 +209,6 @@ export class MarketDataManager {
       }
     }
 
-    // Get the most recent candle
     const timestamps = Object.keys(candlesData).map(Number).sort((a, b) => b - a);
     if (timestamps.length === 0) {
       return null;
@@ -263,7 +217,6 @@ export class MarketDataManager {
     const latestTimestamp = timestamps[0]!;
     const candleDict = candlesData[latestTimestamp];
 
-    // Calculate opening, closing, and remaining time
     const opening = candleDict.timestamp;
     const closing = opening + period;
     const remaining = closing - Math.floor(Date.now() / 1000);
@@ -281,27 +234,12 @@ export class MarketDataManager {
     };
   }
 
-  /**
-   * Unsubscribe from candle stream
-   */
   private unsubscribeFromCandleStream(asset: string): void {
     this.logger.debug(`Unsubscribing from candle stream: ${asset}`);
-    // Python SDK passes asset as string directly
     const message = `42["depth/unfollow","${asset}"]`;
     this.ws.send(message);
   }
 
-  /**
-   * Store and apply trading settings (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's store_settings_apply function
-   * 
-   * @param asset - Asset symbol
-   * @param period - Trading period in seconds
-   * @param timeMode - "TIMER" or "TIME" mode
-   * @param deal - Deal amount
-   * @param percentMode - Whether to use percentage mode
-   * @param percentDeal - Percentage value if percentMode is true
-   */
   async storeSettingsApply(
     asset: string = 'EURUSD',
     period: number = 0,
@@ -312,11 +250,9 @@ export class MarketDataManager {
   ): Promise<any> {
     const isFastOption = timeMode.toUpperCase() !== 'TIMER';
     
-    // Get current timestamp for expiration
     const currentTime = Math.floor(Date.now() / 1000);
     const expirationTime = isFastOption ? currentTime : currentTime;
 
-    // Apply settings (matches Python SDK format)
     const settingsPayload = {
       chartId: 'graph',
       settings: {
@@ -345,51 +281,48 @@ export class MarketDataManager {
     const message = `42["settings/store",${JSON.stringify(settingsPayload)}]`;
     this.ws.send(message);
 
-    // Wait for settings to be applied
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    // In Python SDK, this would refresh settings and return investment settings
-    // For now, return the payload as confirmation
     return settingsPayload.settings;
   }
 
-  /**
-   * Setup WebSocket handlers for market data
-   */
   private setupMarketDataHandlers(): void {
-    // Candle updates
     this.ws.subscribe('candles', (data) => {
       this.handleCandleUpdate(data);
     });
 
-    // Price updates
+    this.ws.subscribe('tick', (data) => {
+      this.handleTickUpdate(data);
+    });
+
     this.ws.subscribe('price', (data) => {
       this.handlePriceUpdate(data);
     });
 
-    // Sentiment updates
     this.ws.subscribe('sentiment', (data) => {
       this.handleSentimentUpdate(data);
     });
 
-    // Signal updates
     this.ws.subscribe('signals', (data) => {
       this.handleSignalUpdate(data);
     });
 
-    // Instruments update (includes candles)
     this.ws.subscribe('instruments/update', (data) => {
       this.handleCandleUpdate(data);
     });
   }
 
-  /**
-   * Handle candle update
-   */
   private handleCandleUpdate(data: any): void {
-    if (!data || !data.asset) return;
+    if (!data) return;
 
     try {
+      if (data.candles !== undefined || data.history !== undefined) {
+        this.handleHistoryResponse(data);
+        return;
+      }
+
+      if (!data.asset) return;
+
       const candle: Candle = {
         open: data.open,
         high: data.high,
@@ -407,17 +340,30 @@ export class MarketDataManager {
       const candles = this.candleStreams.get(asset)!;
       candles.push(candle);
 
-      // Keep only last 1000 candles
       if (candles.length > 1000) {
         candles.shift();
       }
 
-      // Notify subscribers
-      const key = `candles:${asset}:${data.period || 0}`;
-      const callbacks = this.subscriptions.get(key);
-      if (callbacks) {
-        for (const callback of callbacks) {
+      const period = data.period || 0;
+      const notified = new Set<Function>();
+
+      const exactKey = `candles:${asset}:${period}`;
+      const exactCallbacks = this.subscriptions.get(exactKey);
+      if (exactCallbacks) {
+        for (const callback of exactCallbacks) {
           callback(candle);
+          notified.add(callback);
+        }
+      }
+
+      for (const [key, callbacks] of this.subscriptions.entries()) {
+        if (key.startsWith(`candles:${asset}:`) && key !== exactKey) {
+          for (const callback of callbacks) {
+            if (!notified.has(callback)) {
+              callback(candle);
+              notified.add(callback);
+            }
+          }
         }
       }
     } catch (error) {
@@ -425,9 +371,178 @@ export class MarketDataManager {
     }
   }
 
-  /**
-   * Handle price update
-   */
+  private handleHistoryResponse(data: any): void {
+    const asset = data.asset;
+    const period = data.period;
+    
+    if (!asset) {
+      this.logger.debug('History response missing asset');
+      return;
+    }
+
+    const candlesArray = data.candles;
+    const historyArray = data.history;
+
+    if (!this.candleStreams.has(asset)) {
+      this.candleStreams.set(asset, []);
+    }
+
+    const candles = this.candleStreams.get(asset)!;
+
+    if (Array.isArray(candlesArray) && candlesArray.length > 0) {
+      this.logger.info(`📊 Processing ${candlesArray.length} OHLC candles for ${asset} (period: ${period})`);
+
+      let parsed = 0;
+      for (const entry of candlesArray) {
+        let candle: Candle | null = null;
+
+        if (Array.isArray(entry) && entry.length >= 5) {
+          candle = {
+            time: Math.floor(entry[0]),
+            open: entry[1],
+            close: entry[2],
+            high: entry[3],
+            low: entry[4],
+            volume: entry.length > 5 ? entry[5] : undefined,
+          };
+        } else if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+          if (entry.open !== undefined && entry.close !== undefined) {
+            candle = {
+              open: entry.open,
+              high: entry.high,
+              low: entry.low,
+              close: entry.close,
+              time: entry.time || entry.timestamp || entry.at,
+              volume: entry.volume,
+            };
+          }
+        }
+
+        if (candle && candle.time && !isNaN(candle.open) && !isNaN(candle.close)) {
+          candles.push(candle);
+          parsed++;
+        }
+      }
+
+      this.logger.info(`📊 Parsed ${parsed}/${candlesArray.length} OHLC candles for ${asset}`);
+      
+    } else if (Array.isArray(historyArray) && historyArray.length > 0 && period > 0) {
+      this.logger.info(`📊 Aggregating ${historyArray.length} ticks into ${period}s candles for ${asset}`);
+      
+      const buckets = new Map<number, { open: number; high: number; low: number; close: number; time: number; count: number }>();
+      
+      for (const tick of historyArray) {
+        if (!Array.isArray(tick) || tick.length < 2) continue;
+        const timestamp = tick[0];
+        const price = tick[1];
+        if (typeof timestamp !== 'number' || typeof price !== 'number') continue;
+        
+        const bucketTime = Math.floor(timestamp / period) * period;
+        
+        if (!buckets.has(bucketTime)) {
+          buckets.set(bucketTime, {
+            time: bucketTime,
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            count: 1,
+          });
+        } else {
+          const b = buckets.get(bucketTime)!;
+          b.high = Math.max(b.high, price);
+          b.low = Math.min(b.low, price);
+          b.close = price;
+          b.count++;
+        }
+      }
+
+      const aggregated = Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+      for (const b of aggregated) {
+        candles.push({
+          time: b.time,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+          volume: b.count,
+        });
+      }
+
+      this.logger.info(`📊 Aggregated into ${aggregated.length} candles for ${asset}`);
+    } else {
+      this.logger.debug(`📊 No usable candle data in history response for ${asset}`);
+      return;
+    }
+
+    if (candles.length > 1000) {
+      const excess = candles.length - 1000;
+      candles.splice(0, excess);
+    }
+
+    candles.sort((a, b) => a.time - b.time);
+
+    this.logger.info(`📊 Candle stream for ${asset} now has ${candles.length} candles`);
+
+    if (candles.length > 0) {
+      const latestCandle = candles[candles.length - 1]!;
+      const key = `candles:${asset}:${period || 0}`;
+      const callbacks = this.subscriptions.get(key);
+      if (callbacks) {
+        for (const callback of callbacks) {
+          callback(latestCandle);
+        }
+      }
+    }
+  }
+
+  private handleTickUpdate(data: any): void {
+    if (!Array.isArray(data) || data.length < 2) return;
+
+    const asset = data[0];
+    if (typeof asset !== 'string') return;
+
+    if (data.length === 2 && typeof data[1] === 'number' && data[1] === Math.floor(data[1])) {
+      return;
+    }
+
+    if (data.length < 3) return;
+    const timestamp = data[1];
+    const price = data[2];
+
+    if (typeof timestamp !== 'number' || typeof price !== 'number') return;
+
+    const syntheticCandle: Candle = {
+      time: timestamp,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: 1,
+    };
+
+    const notified = new Set<Function>();
+    for (const [key, callbacks] of this.subscriptions.entries()) {
+      if (key.startsWith(`candles:${asset}:`)) {
+        for (const callback of callbacks) {
+          if (!notified.has(callback)) {
+            callback(syntheticCandle);
+            notified.add(callback);
+          }
+        }
+      }
+    }
+
+    if (!this.priceStreams.has(asset)) {
+      this.priceStreams.set(asset, []);
+    }
+    const prices = this.priceStreams.get(asset)!;
+    prices.push({ asset, price, time: timestamp });
+    if (prices.length > 100) {
+      prices.shift();
+    }
+  }
+
   private handlePriceUpdate(data: any): void {
     if (!data || !data.asset) return;
 
@@ -444,12 +559,10 @@ export class MarketDataManager {
     const prices = this.priceStreams.get(data.asset)!;
     prices.push(price);
 
-    // Keep only last 100 prices
     if (prices.length > 100) {
       prices.shift();
     }
 
-    // Notify subscribers
     const key = `prices:${data.asset}`;
     const callbacks = this.subscriptions.get(key);
     if (callbacks) {
@@ -459,9 +572,6 @@ export class MarketDataManager {
     }
   }
 
-  /**
-   * Handle sentiment update
-   */
   private handleSentimentUpdate(data: any): void {
     if (!data || !data.asset) return;
 
@@ -476,7 +586,6 @@ export class MarketDataManager {
 
     this.sentimentData.set(data.asset, sentiment);
 
-    // Notify subscribers
     const key = `sentiment:${data.asset}`;
     const callbacks = this.subscriptions.get(key);
     if (callbacks) {
@@ -486,9 +595,6 @@ export class MarketDataManager {
     }
   }
 
-  /**
-   * Handle signal update
-   */
   private handleSignalUpdate(data: any): void {
     if (!data || !data.asset) return;
 
@@ -507,15 +613,11 @@ export class MarketDataManager {
     const signals = this.signalData.get(data.asset)!;
     signals.push(signal);
 
-    // Keep only last 10 signals per asset
     if (signals.length > 10) {
       signals.shift();
     }
   }
 
-  /**
-   * Wait for candles data
-   */
   private async waitForCandles(asset: string, period: number, timeout: number): Promise<Candle[]> {
     const startTime = Date.now();
 

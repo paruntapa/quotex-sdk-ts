@@ -1,19 +1,3 @@
-/**
- * Main Quotex SDK Client
- * 
- * @example
- * ```typescript
- * const client = new QuotexClient({
- *   email: 'your@email.com',
- *   password: 'password',
- *   lang: 'en'
- * });
- * 
- * await client.connect();
- * const balance = await client.getBalance();
- * ```
- */
-
 import type {
   QuotexConfig,
   ConnectionResult,
@@ -61,14 +45,12 @@ export class QuotexClient {
   private readonly config: Required<QuotexConfig>;
   private readonly logger: Logger;
   
-  // Core components
   private readonly ws: SocketIOManager;
   private readonly session: SessionManager;
   private readonly http: HttpClient;
   private readonly auth: AuthClient;
   private readonly history: HistoryClient;
   
-  // Feature managers
   private readonly trading: TradingManager;
   private readonly marketData: MarketDataManager;
   private readonly account: AccountManager;
@@ -92,7 +74,7 @@ export class QuotexClient {
       this.logger
     );
     
-    this.session = new SessionManager(this.logger);
+    this.session = new SessionManager(this.logger, this.config.sessionPath);
     this.http = new HttpClient(undefined, this.logger);
     
     const browserHeadless = process.env.BROWSER_HEADLESS !== 'false';
@@ -105,17 +87,11 @@ export class QuotexClient {
     this.assets = new AssetManager(this.ws as any, this.logger);
     this.indicators = new IndicatorManager(this.logger);
     
-    // Set HTTP headers
     this.http.setHeaders({
       'User-Agent': this.config.userAgent,
     });
   }
 
-  // ==================== Connection Methods ====================
-
-  /**
-   * Set account mode (demo or live)
-   */
   setAccountMode(mode: AccountMode): void {
     this.account.setAccountMode(mode);
     
@@ -124,9 +100,6 @@ export class QuotexClient {
     }
   }
 
-  /**
-   * Connect to Quotex platform
-   */
   async connect(): Promise<ConnectionResult> {
     try {
       this.logger.info('Connecting to Quotex...');
@@ -200,7 +173,6 @@ export class QuotexClient {
       this.connected = true;
       this.logger.info('Successfully connected to Quotex');
 
-      // Wait for initial data
       await Bun.sleep(500);
 
       return {
@@ -216,56 +188,33 @@ export class QuotexClient {
     }
   }
 
-  /**
-   * Disconnect from platform
-   */
   async disconnect(): Promise<void> {
     this.logger.info('Disconnecting...');
     this.ws.disconnect();
     this.connected = false;
   }
 
-  /**
-   * Check if connected
-   */
   isConnected(): boolean {
     return this.connected && this.ws.isConnected();
   }
 
-  /**
-   * Reconnect to platform
-   */
   async reconnect(): Promise<ConnectionResult> {
     await this.disconnect();
     await Bun.sleep(1000);
     const result = await this.connect();
     
-    // Re-subscribe to streams after reconnect
     await this.reSubscribeStreams();
     
     return result;
   }
 
-  /**
-   * Check if websocket is alive (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's websocket_alive function
-   */
   websocketAlive(): boolean {
     return this.ws.isConnected();
   }
 
-  /**
-   * Re-subscribe to all streams after reconnect (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's re_subscribe_stream function
-   * This automatically re-subscribes to all previously active streams
-   */
   private async reSubscribeStreams(): Promise<void> {
     try {
       this.logger.info('Re-subscribing to streams after reconnect...');
-      
-      // The MarketDataManager and other managers already track subscriptions
-      // They will automatically re-subscribe when the WebSocket reconnects
-      // This method is here for compatibility with Python SDK structure
       
       await Bun.sleep(500);
       this.logger.info('Stream re-subscription complete');
@@ -274,127 +223,58 @@ export class QuotexClient {
     }
   }
 
-  // ==================== Trading Methods ====================
-
-  /**
-   * Place a buy order
-   * 
-   * @example
-   * ```typescript
-   * const result = await client.buy({
-   *   amount: 50,
-   *   asset: 'EURUSD',
-   *   direction: 'call',
-   *   duration: 60
-   * });
-   * ```
-   */
   async buy(options: BuyOptions): Promise<TradeResult> {
     return this.trading.buy(options);
   }
 
-  /**
-   * Place a pending order
-   */
   async openPending(options: PendingOrderOptions): Promise<TradeResult> {
     return this.trading.openPending(options);
   }
 
-  /**
-   * Sell/close an option
-   */
   async sellOption(optionId: string): Promise<SellOptionResult> {
     return this.trading.sellOption(optionId);
   }
 
-  /**
-   * Check if a trade won
-   */
   async checkWin(tradeId: string, timeout?: number): Promise<boolean> {
     return this.trading.checkWin(tradeId, timeout);
   }
 
-  /**
-   * Get trade result
-   */
   async getResult(tradeId: string) {
     return this.trading.getResult(tradeId);
   }
 
-  /**
-   * Get last profit/loss
-   */
   getProfit(): number {
     return this.trading.getProfit();
   }
 
-  /**
-   * Get active trades
-   */
   getActiveTrades() {
     return this.trading.getActiveTrades();
   }
 
-  // ==================== Market Data Methods ====================
-
-  /**
-   * Get historical candles
-   * 
-   * @example
-   * ```typescript
-   * const candles = await client.getCandles({
-   *   asset: 'EURUSD',
-   *   offset: 3600,
-   *   period: 60
-   * });
-   * ```
-   */
   async getCandles(options: CandleOptions): Promise<Candle[]> {
     return this.marketData.getCandles(options);
   }
 
-  /**
-   * Get history line data (NEW_FUNCTION - matches Python SDK)
-   * 
-   * @param assetId - Asset ID (not symbol)
-   * @param endTime - End time for history
-   * @param offset - Offset in seconds
-   */
   async getHistoryLine(assetId: string, endTime?: number, offset: number = 3600): Promise<any> {
     return this.marketData.getHistoryLine(assetId, endTime, offset);
   }
 
-  /**
-   * Get realtime candles
-   */
   async getRealtimeCandles(asset: string): Promise<Candle[]> {
     return this.marketData.getRealtimeCandles(asset);
   }
 
-  /**
-   * Get realtime price
-   */
   async getRealtimePrice(asset: string): Promise<RealtimePrice[]> {
     return this.marketData.getRealtimePrice(asset);
   }
 
-  /**
-   * Get market sentiment
-   */
   async getRealtimeSentiment(asset: string): Promise<MarketSentiment | null> {
     return this.marketData.getRealtimeSentiment(asset);
   }
 
-  /**
-   * Get trading signals
-   */
   getSignalData(): TradingSignal[] {
     return this.marketData.getSignalData();
   }
 
-  /**
-   * Subscribe to candle updates
-   */
   subscribeToCandleStream(
     asset: string,
     period: number,
@@ -403,9 +283,6 @@ export class QuotexClient {
     return this.marketData.subscribeToCandleStream(asset, period, callback);
   }
 
-  /**
-   * Subscribe to price updates
-   */
   subscribeToPriceStream(
     asset: string,
     period: number,
@@ -414,29 +291,14 @@ export class QuotexClient {
     return this.marketData.subscribeToPriceStream(asset, period, callback);
   }
 
-  /**
-   * Subscribe to sentiment updates
-   */
   subscribeToSentimentStream(asset: string, callback: SentimentCallback): Unsubscribe {
     return this.marketData.subscribeToSentimentStream(asset, callback);
   }
 
-  /**
-   * Start signals data stream
-   */
   startSignalsData(): void {
     this.marketData.startSignalsData();
   }
 
-  /**
-   * Get opening/closing info for current candle (NEW_FUNCTION - matches Python SDK)
-   * 
-   * @example
-   * ```typescript
-   * const candleInfo = await client.openingClosingCurrentCandle('EURUSD', 60);
-   * console.log(`Remaining time: ${candleInfo.remaining}s`);
-   * ```
-   */
   async openingClosingCurrentCandle(asset: string, period: number = 0): Promise<{
     symbol: string;
     open: number;
@@ -451,14 +313,6 @@ export class QuotexClient {
     return this.marketData.openingClosingCurrentCandle(asset, period);
   }
 
-  /**
-   * Store and apply trading settings (NEW_FUNCTION - matches Python SDK)
-   * 
-   * @example
-   * ```typescript
-   * const settings = await client.storeSettingsApply('EURUSD', 60, 'TIME', 50, false, 1);
-   * ```
-   */
   async storeSettingsApply(
     asset: string = 'EURUSD',
     period: number = 0,
@@ -470,151 +324,74 @@ export class QuotexClient {
     return this.marketData.storeSettingsApply(asset, period, timeMode, deal, percentMode, percentDeal);
   }
 
-  // ==================== Account Methods ====================
-
-  /**
-   * Get user profile
-   */
   async getProfile(): Promise<Profile | null> {
     return this.account.getProfile();
   }
 
-  /**
-   * Get current balance
-   */
   async getBalance(): Promise<number> {
     return this.account.getBalance();
   }
 
-  /**
-   * Change account
-   */
   async changeAccount(mode: AccountMode): Promise<boolean> {
     return this.account.changeAccount(mode);
   }
 
-  /**
-   * Edit practice balance (demo only)
-   */
   async editPracticeBalance(amount: number): Promise<boolean> {
     return this.account.editPracticeBalance(amount);
   }
 
-  /**
-   * Get account mode
-   */
   getAccountMode(): AccountMode {
     return this.account.getAccountMode();
   }
 
-  // ==================== Asset Methods ====================
-
-  /**
-   * Get all instruments
-   */
   async getInstruments(): Promise<InstrumentData[]> {
     return this.assets.getInstruments();
   }
 
-  /**
-   * Get all assets
-   */
   async getAllAssets(): Promise<Asset[]> {
     return this.assets.getAllAssets();
   }
 
-  /**
-   * Get all asset names
-   */
   async getAllAssetNames(): Promise<string[]> {
     return this.assets.getAllAssetNames();
   }
 
-  /**
-   * Check if asset is open
-   */
   async checkAssetOpen(assetName: string): Promise<AssetInfo | null> {
     return this.assets.checkAssetOpen(assetName);
   }
 
-  /**
-   * Get available asset (tries OTC if closed)
-   */
   async getAvailableAsset(assetName: string, forceOpen?: boolean): Promise<AssetInfo | null> {
     return this.assets.getAvailableAsset(assetName, forceOpen);
   }
 
-  /**
-   * Get asset payout information with percentage and currency
-   * 
-   * @example
-   * ```typescript
-   * const payout = client.getPayoutInfo('EURUSD_otc');
-   * if (payout) {
-   *   console.log(`${payout.asset}: ${payout.percentage}%`);
-   * }
-   * ```
-   */
   getPayoutInfo(assetName: string): PayoutInfo | null {
     return this.assets.getPayoutInfo(assetName);
   }
 
-  /**
-   * Get all payouts for all assets
-   * Returns a Map of asset names to payout percentages
-   */
   getAllPayouts(): Map<string, number> {
     return this.assets.getAllPayouts();
   }
 
-  /**
-   * Get payout percentage by asset
-   */
   getPayoutByAsset(assetName: string): number {
     return this.assets.getPayoutByAsset(assetName);
   }
 
-  /**
-   * Get assets by category
-   */
   async getAssetsByCategory(category: string): Promise<Asset[]> {
     return this.assets.getAssetsByCategory(category);
   }
 
-  /**
-   * Get only open assets
-   */
   async getOpenAssets(): Promise<Asset[]> {
     return this.assets.getOpenAssets();
   }
 
-  /**
-   * Search assets
-   */
   async searchAssets(query: string): Promise<Asset[]> {
     return this.assets.searchAssets(query);
   }
 
-  // ==================== Indicator Methods ====================
-
-  /**
-   * Calculate technical indicator
-   * 
-   * @example
-   * ```typescript
-   * const rsi = await client.calculateIndicator({
-   *   asset: 'EURUSD',
-   *   indicator: 'RSI',
-   *   params: { period: 14 },
-   *   timeframe: 300
-   * });
-   * ```
-   */
   async calculateIndicator(options: IndicatorOptions): Promise<IndicatorResult> {
-    // First get candles
     const candles = await this.getCandles({
       asset: options.asset,
-      offset: options.timeframe * 100, // Get 100 periods
+      offset: options.timeframe * 100,
       period: options.timeframe,
     });
 
@@ -625,26 +402,6 @@ export class QuotexClient {
     return this.indicators.calculate(candles, options);
   }
 
-  /**
-   * Subscribe to real-time indicator updates (NEW_FUNCTION - matches Python SDK)
-   * Port of Python SDK's subscribe_indicator function
-   * 
-   * @example
-   * ```typescript
-   * const unsubscribe = await client.subscribeIndicator({
-   *   asset: 'EURUSD',
-   *   indicator: 'RSI',
-   *   params: { period: 14 },
-   *   timeframe: 60,
-   *   callback: (result) => {
-   *     console.log('RSI:', result.current);
-   *   }
-   * });
-   * 
-   * // Later, to stop:
-   * unsubscribe();
-   * ```
-   */
   async subscribeIndicator(options: {
     asset: string;
     indicator: IndicatorType;
@@ -663,31 +420,26 @@ export class QuotexClient {
     let isActive = true;
     let historicalCandles: Candle[] = [];
 
-    // Get initial historical data
     try {
       historicalCandles = await this.getCandles({
         asset,
-        offset: timeframe * 100, // Get 100 periods
+        offset: timeframe * 100,
         period: timeframe,
       });
     } catch (error) {
       this.logger.error('Failed to get initial historical data:', error);
     }
 
-    // Subscribe to candle stream
     const candleUnsubscribe = this.subscribeToCandleStream(asset, timeframe, async (newCandle) => {
       if (!isActive) return;
 
       try {
-        // Update historical candles with new candle
         historicalCandles.push(newCandle);
         
-        // Keep only last 100 candles
         if (historicalCandles.length > 100) {
           historicalCandles = historicalCandles.slice(-100);
         }
 
-        // Calculate indicator with updated data
         const result = await this.indicators.calculate(historicalCandles, {
           asset,
           indicator,
@@ -695,14 +447,12 @@ export class QuotexClient {
           timeframe,
         });
 
-        // Call user callback with result
         callback(result);
       } catch (error) {
         this.logger.error(`Error calculating ${indicator}:`, error);
       }
     });
 
-    // Return unsubscribe function
     return () => {
       isActive = false;
       candleUnsubscribe();
@@ -710,35 +460,18 @@ export class QuotexClient {
     };
   }
 
-  // ==================== History Methods ====================
-
-  /**
-   * Get trade history
-   */
   async getHistory(limit?: number, offset?: number): Promise<TradeHistory[]> {
     return this.history.getHistory(limit, offset);
   }
 
-  /**
-   * Get history by asset
-   */
   async getHistoryByAsset(asset: string, limit?: number): Promise<TradeHistory[]> {
     return this.history.getHistoryByAsset(asset, limit);
   }
 
-  /**
-   * Get history by date range
-   */
   async getHistoryByDateRange(from: number, to: number): Promise<TradeHistory[]> {
     return this.history.getHistoryByDateRange(from, to);
   }
 
-  /**
-   * Get trader history with pagination (NEW_FUNCTION - matches Python SDK)
-   * 
-   * @param accountType - "demo" or "live"
-   * @param pageNumber - Page number for pagination
-   */
   async getTraderHistory(accountType: 'demo' | 'live' = 'demo', pageNumber: number = 1): Promise<any> {
     return this.history.getTraderHistory(accountType, pageNumber);
   }

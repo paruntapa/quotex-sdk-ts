@@ -1,7 +1,3 @@
-/**
- * Asset management operations
- */
-
 import  type { Logger, Asset, AssetInfo, PayoutInfo, InstrumentData } from '../../types';
 import { WebSocketManager } from '../../core/websocket/WebSocketManager';
 
@@ -16,42 +12,27 @@ export class AssetManager {
     this.setupAssetHandlers();
   }
 
-  /**
-   * Get all available instruments
-   */
   async getInstruments(): Promise<InstrumentData[]> {
     if (this.instruments.length > 0) {
       return [...this.instruments];
     }
 
-    // Request instruments
     const message = '42["instruments/get"]';
-    console.log(message, 'message for all the assets')
     this.ws.send(message);
 
-    // Wait for instruments data
     return this.waitForInstruments(5000);
   }
 
-  /**
-   * Get all asset names
-   */
   async getAllAssetNames(): Promise<string[]> {
     const instruments = await this.getInstruments();
     return instruments.map(i => i.symbol);
   }
 
-  /**
-   * Get all assets with info
-   */
   async getAllAssets(): Promise<Asset[]> {
     const instruments = await this.getInstruments();
     return instruments.map(i => this.instrumentToAsset(i));
   }
 
-  /**
-   * Check if asset is open
-   */
   async checkAssetOpen(assetName: string): Promise<AssetInfo | null> {
     const instruments = await this.getInstruments();
     const instrument = instruments.find(i => i.symbol === assetName);
@@ -70,14 +51,10 @@ export class AssetManager {
     };
   }
 
-  /**
-   * Get available asset (tries OTC if closed)
-   */
   async getAvailableAsset(assetName: string, forceOpen: boolean = false): Promise<AssetInfo | null> {
     let assetInfo = await this.checkAssetOpen(assetName);
 
     if (forceOpen && assetInfo && !assetInfo.isOpen) {
-      // Try OTC version
       const isOTC = assetName.includes('_otc');
       const alternativeName = isOTC 
         ? assetName.replace('_otc', '')
@@ -94,9 +71,6 @@ export class AssetManager {
     return assetInfo;
   }
 
-  /**
-   * Get asset payout information
-   */
   getPayoutInfo(assetName: string): PayoutInfo | null {
     const payout = this.payoutData.get(assetName);
     
@@ -111,23 +85,14 @@ export class AssetManager {
     };
   }
 
-  /**
-   * Get all payout data
-   */
   getAllPayouts(): Map<string, number> {
     return new Map(this.payoutData);
   }
 
-  /**
-   * Get payout percentage by asset
-   */
   getPayoutByAsset(assetName: string): number {
     return this.payoutData.get(assetName) || 0;
   }
 
-  /**
-   * Filter assets by category
-   */
   async getAssetsByCategory(category: string): Promise<Asset[]> {
     const instruments = await this.getInstruments();
     return instruments
@@ -135,9 +100,6 @@ export class AssetManager {
       .map(i => this.instrumentToAsset(i));
   }
 
-  /**
-   * Filter only open assets
-   */
   async getOpenAssets(): Promise<Asset[]> {
     const instruments = await this.getInstruments();
     return instruments
@@ -145,9 +107,6 @@ export class AssetManager {
       .map(i => this.instrumentToAsset(i));
   }
 
-  /**
-   * Search assets by name
-   */
   async searchAssets(query: string): Promise<Asset[]> {
     const instruments = await this.getInstruments();
     const lowerQuery = query.toLowerCase();
@@ -160,36 +119,26 @@ export class AssetManager {
       .map(i => this.instrumentToAsset(i));
   }
 
-  /**
-   * Setup WebSocket handlers for asset events
-   */
   private setupAssetHandlers(): void {
-    // Instruments list
     this.ws.subscribe('instruments', (data) => {
       this.handleInstrumentsUpdate(data);
     });
 
-    // Instrument updates
     this.ws.subscribe('instruments/update', (data) => {
       this.handleInstrumentUpdate(data);
     });
 
-    // Payout updates
     this.ws.subscribe('payout', (data) => {
       this.handlePayoutUpdate(data);
     });
   }
 
-  /**
-   * Handle instruments update
-   */
   private handleInstrumentsUpdate(data: any): void {
     if (!data || !Array.isArray(data)) return;
 
     this.instruments = data.map((item: any) => this.parseInstrument(item));
     this.logger.debug(`Loaded ${this.instruments.length} instruments`);
 
-    // Extract payout data
     for (const instrument of this.instruments) {
       if (instrument.payout) {
         this.payoutData.set(instrument.symbol, instrument.payout);
@@ -197,9 +146,6 @@ export class AssetManager {
     }
   }
 
-  /**
-   * Handle individual instrument update
-   */
   private handleInstrumentUpdate(data: any): void {
     if (!data || !data.symbol) return;
 
@@ -217,9 +163,6 @@ export class AssetManager {
     }
   }
 
-  /**
-   * Handle payout update
-   */
   private handlePayoutUpdate(data: any): void {
     if (!data) return;
 
@@ -230,12 +173,8 @@ export class AssetManager {
     }
   }
 
-  /**
-   * Parse instrument data
-   */
   private parseInstrument(data: any): InstrumentData {
-    // Quotex sends instruments as arrays: [id, symbol, name, ...]
-    const payout = data.payout || data[5] || 0; // Try payout or index 5
+    const payout = data.payout || data[5] || 0;
     
     return {
       id: data.id || data[0] || '',
@@ -248,9 +187,6 @@ export class AssetManager {
     };
   }
 
-  /**
-   * Convert instrument to asset
-   */
   private instrumentToAsset(instrument: InstrumentData): Asset {
     return {
       id: instrument.id,
@@ -262,9 +198,6 @@ export class AssetManager {
     };
   }
 
-  /**
-   * Wait for instruments data
-   */
   private async waitForInstruments(timeout: number): Promise<InstrumentData[]> {
     const startTime = Date.now();
 
