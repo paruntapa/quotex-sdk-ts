@@ -90,6 +90,11 @@ export class QuotexClient {
     this.http.setHeaders({
       'User-Agent': this.config.userAgent,
     });
+
+    this.ws.onReconnected(() => {
+      this.logger.info('🔄 WebSocket reconnected — re-subscribing all streams...');
+      this.reSubscribeStreams();
+    });
   }
 
   setAccountMode(mode: AccountMode): void {
@@ -203,7 +208,7 @@ export class QuotexClient {
     await Bun.sleep(1000);
     const result = await this.connect();
     
-    await this.reSubscribeStreams();
+    this.reSubscribeStreams();
     
     return result;
   }
@@ -212,12 +217,13 @@ export class QuotexClient {
     return this.ws.isConnected();
   }
 
-  private async reSubscribeStreams(): Promise<void> {
+  onReconnected(callback: () => void): void {
+    this.ws.onReconnected(callback);
+  }
+
+  private reSubscribeStreams(): void {
     try {
-      this.logger.info('Re-subscribing to streams after reconnect...');
-      
-      await Bun.sleep(500);
-      this.logger.info('Stream re-subscription complete');
+      this.marketData.resubscribeAll();
     } catch (error) {
       this.logger.error('Failed to re-subscribe to streams:', error);
     }

@@ -234,6 +234,29 @@ export class MarketDataManager {
     };
   }
 
+  resubscribeAll(): void {
+    const resubscribedAssets = new Set<string>();
+
+    for (const key of this.subscriptions.keys()) {
+      const match = key.match(/^candles:(.+):(\d+)$/);
+      if (!match) continue;
+
+      const asset = match[1]!;
+      const period = parseInt(match[2]!);
+
+      if (!resubscribedAssets.has(asset)) {
+        resubscribedAssets.add(asset);
+        this.ws.send(`42["depth/follow","${asset}"]`);
+      }
+
+      const payload = { asset, period };
+      this.ws.send(`42["instruments/update",${JSON.stringify(payload)}]`);
+      this.logger.info(`🔄 Re-subscribed to candle stream: ${asset}, period: ${period}`);
+    }
+
+    this.logger.info(`🔄 Re-subscribed ${resubscribedAssets.size} asset stream(s)`);
+  }
+
   private unsubscribeFromCandleStream(asset: string): void {
     this.logger.debug(`Unsubscribing from candle stream: ${asset}`);
     const message = `42["depth/unfollow","${asset}"]`;

@@ -14,13 +14,22 @@ export class SocketIOManager {
   private messageHandlers = new Map<string, Set<(data: any) => void>>();
   private reconnectAttempt = 0;
   private pingInterval: Timer | null = null;
+  private hasAuthedOnce = false;
+  private storedCredentials: { token?: string; cookies?: string; userAgent?: string } = {};
+  private onReconnectedCallbacks: Array<() => void> = [];
 
   constructor(
     private readonly config: SocketIOConfig,
     private readonly logger: Logger
   ) {}
 
+  onReconnected(callback: () => void): void {
+    this.onReconnectedCallbacks.push(callback);
+  }
+
   async connect(token?: string, cookies?: string, userAgent?: string): Promise<boolean> {
+    this.storedCredentials = { token, cookies, userAgent };
+
     return new Promise((resolve) => {
       try {
         this.logger.info('Connecting to WebSocket with Socket.IO protocol...');
@@ -187,7 +196,11 @@ export class SocketIOManager {
       }
 
       if (message === '41') {
-        this.logger.warn('Disconnected from Socket.IO namespace');
+        this.logger.warn('Disconnected from Socket.IO namespace — triggering reconnect');
+        this.connected = false;
+        this.reconnectAttempt = 0;
+        this.stopPing();
+        this.socket?.close();
         return;
       }
 
@@ -274,6 +287,14 @@ export class SocketIOManager {
 
               if (event === 's_authorization') {
                 this.logger.info('✅ Authorization accepted!');
+                this.reconnectAttempt = 0;
+                if (this.hasAuthedOnce) {
+                  this.logger.info('🔄 Reconnection successful — firing reconnect callbacks');
+                  for (const cb of this.onReconnectedCallbacks) {
+                    try { cb(); } catch (e) { this.logger.error('Reconnect callback error:', e); }
+                  }
+                }
+                this.hasAuthedOnce = true;
               } else if (event === 'authorization/reject') {
                 this.logger.error('❌ Authorization rejected');
               }
