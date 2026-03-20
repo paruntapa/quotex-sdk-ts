@@ -12,7 +12,20 @@ export class AssetManager {
     this.setupAssetHandlers();
   }
 
-  async getInstruments(): Promise<InstrumentData[]> {
+  /**
+   * Clears cached instruments and payout map. Next getInstruments() will refetch.
+   * Call on disconnect / app stop so the next session does not use stale data.
+   */
+  clearCache(): void {
+    this.instruments = [];
+    this.payoutData.clear();
+  }
+
+  async getInstruments(forceRefresh = false): Promise<InstrumentData[]> {
+    if (forceRefresh) {
+      this.clearCache();
+    }
+
     if (this.instruments.length > 0) {
       return [...this.instruments];
     }
@@ -20,7 +33,12 @@ export class AssetManager {
     const message = '42["instruments/get"]';
     this.ws.send(message);
 
-    return this.waitForInstruments(5000);
+    return this.waitForInstruments(8000);
+  }
+
+  /** Refetch instruments + payouts from the server (clears cache first). */
+  async refreshInstruments(): Promise<InstrumentData[]> {
+    return this.getInstruments(true);
   }
 
   async getAllAssetNames(): Promise<string[]> {
@@ -51,24 +69,41 @@ export class AssetManager {
     };
   }
 
-  async getAvailableAsset(assetName: string, forceOpen: boolean = false): Promise<AssetInfo | null> {
+  /**
+   * @param forceOpen — if true, only considers assets that are currently open (returns null if closed).
+   * @param allowVariantSwap — if true (legacy), when the symbol is closed, try OTC ↔ live variant.
+   *   Set false when the caller needs an exact symbol from an allowlist (avoids wrong payout / wrong pair).
+   */
+  async getAvailableAsset(
+    assetName: string,
+    forceOpen: boolean = false,
+    allowVariantSwap: boolean = true,
+  ): Promise<AssetInfo | null> {
     let assetInfo = await this.checkAssetOpen(assetName);
 
-    if (forceOpen && assetInfo && !assetInfo.isOpen) {
+    if (!assetInfo) {
+      return null;
+    }
+
+    if (assetInfo.isOpen) {
+      return assetInfo;
+    }
+
+    if (forceOpen && allowVariantSwap) {
       const isOTC = assetName.includes('_otc');
-      const alternativeName = isOTC 
+      const alternativeName = isOTC
         ? assetName.replace('_otc', '')
         : `${assetName}_otc`;
 
       this.logger.debug(`Asset ${assetName} is closed, trying ${alternativeName}`);
-      
+
       const alternativeAsset = await this.checkAssetOpen(alternativeName);
       if (alternativeAsset && alternativeAsset.isOpen) {
         return alternativeAsset;
       }
     }
 
-    return assetInfo;
+    return forceOpen ? null : assetInfo;
   }
 
   getPayoutInfo(assetName: string): PayoutInfo | null {

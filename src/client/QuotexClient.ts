@@ -350,8 +350,17 @@ export class QuotexClient {
     return this.account.getAccountMode();
   }
 
-  async getInstruments(): Promise<InstrumentData[]> {
-    return this.assets.getInstruments();
+  async getInstruments(forceRefresh = false): Promise<InstrumentData[]> {
+    return this.assets.getInstruments(forceRefresh);
+  }
+
+  async refreshInstruments(): Promise<InstrumentData[]> {
+    return this.assets.refreshInstruments();
+  }
+
+  /** Clear cached instruments/payouts (e.g. on engine stop). */
+  clearAssetCache(): void {
+    this.assets.clearCache();
   }
 
   async getAllAssets(): Promise<Asset[]> {
@@ -366,8 +375,16 @@ export class QuotexClient {
     return this.assets.checkAssetOpen(assetName);
   }
 
-  async getAvailableAsset(assetName: string, forceOpen?: boolean): Promise<AssetInfo | null> {
-    return this.assets.getAvailableAsset(assetName, forceOpen);
+  async getAvailableAsset(
+    assetName: string,
+    forceOpen?: boolean,
+    allowVariantSwap?: boolean,
+  ): Promise<AssetInfo | null> {
+    return this.assets.getAvailableAsset(
+      assetName,
+      forceOpen ?? false,
+      allowVariantSwap ?? true,
+    );
   }
 
   getPayoutInfo(assetName: string): PayoutInfo | null {
